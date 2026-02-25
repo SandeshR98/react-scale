@@ -79,7 +79,7 @@ function GridCard({ product, onClick }: { product: Product; onClick?: () => void
 
   return (
     <Card
-      className="flex flex-col overflow-hidden rounded-xl border-border/60 shadow-sm hover:shadow-lg transition-all duration-200 cursor-pointer"
+      className="flex flex-col overflow-hidden rounded-xl border-border/60 shadow-sm hover:shadow-lg transition-shadow duration-200 cursor-pointer"
       style={{ height: "100%" }}
       onClick={onClick}
     >
@@ -201,7 +201,7 @@ function ListCard({ product, onClick }: { product: Product; onClick?: () => void
 
   return (
     <Card
-      className="flex flex-row overflow-hidden rounded-xl border-border/60 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+      className="flex flex-row overflow-hidden rounded-xl border-border/60 shadow-sm hover:shadow-md transition-shadow duration-200 cursor-pointer"
       style={{ height: 120, minHeight: 120, maxHeight: 120 }}
       onClick={onClick}
     >

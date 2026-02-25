@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useReducer, useRef, useState, useTransition } from "react";
+import { startTransition, useCallback, useDeferredValue, useEffect, useReducer, useRef, useState, useTransition } from "react";
 import { ShoppingBag } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FilterBar } from "./components/FilterBar";
@@ -113,14 +113,26 @@ export default function App() {
         dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
         break;
       }
-      case "FILTER":
+      case "FILTER": {
+        if (ignoreNextWorkerResultRef.current) {
+          ignoreNextWorkerResultRef.current = false;
+          break;
+        }
+        // Worker transferred a Uint32Array of matching indices (zero-copy).
+        // Reconstruct the Product[] from the cached full dataset using those indices.
+        const { indices } = lastResponse as Extract<WorkerResponse, { type: "FILTER" }>;
+        const data = Array.from(indices, (i) => fullDatasetRef.current[i]);
+        dispatch({ type: "SET_DATASET", products: data });
+        dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+        break;
+      }
       case "SORT": {
         if (ignoreNextWorkerResultRef.current) {
           ignoreNextWorkerResultRef.current = false;
           break;
         }
-        const data = (lastResponse as Extract<WorkerResponse, { type: "FILTER" | "SORT" }>).data;
-        dispatch({ type: "SET_DATASET", products: data });
+        const sortData = (lastResponse as Extract<WorkerResponse, { type: "SORT" }>).data;
+        dispatch({ type: "SET_DATASET", products: sortData });
         dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
         break;
       }
@@ -202,13 +214,16 @@ export default function App() {
         ignoreNextWorkerResultRef.current = true;
       }
       dispatch({ type: "SET_WORKER_MODE", value });
-      // Re-run current filter synchronously so the list is immediately correct
+      // Re-run current filter synchronously to get the result, then apply the
+      // heavy SET_DATASET render as a transition so the toggle responds instantly.
       const { query, category } = filterRef.current;
       const start = performance.now();
       const result = filterProducts(fullDatasetRef.current, query, category);
       const elapsed = performance.now() - start;
-      dispatch({ type: "SET_DATASET", products: result });
-      dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+      startTransition(() => {
+        dispatch({ type: "SET_DATASET", products: result });
+        dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+      });
     },
     []
   );

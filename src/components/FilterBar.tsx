@@ -29,7 +29,7 @@ export function FilterBar({ onFilter, viewMode, onViewModeChange }: FilterBarPro
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       onFilter(query, category === ALL_CATEGORIES ? "" : category);
-    }, 300);
+    }, 150);
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };

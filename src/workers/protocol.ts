@@ -28,9 +28,12 @@ export type GenerateResponse = {
   error?: string;
 };
 
+// FILTER sends back a Uint32Array of matching indices as a Transferable —
+// zero-copy transfer, no structured-clone deserialization cost.
+// The main thread reconstructs Product[] from fullDatasetRef using these indices.
 export type FilterResponse = {
   type: "FILTER";
-  data: Product[];
+  indices: Uint32Array;
   error?: string;
 };
 

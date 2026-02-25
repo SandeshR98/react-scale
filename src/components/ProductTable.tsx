@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, startTransition } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useReactTable,
@@ -233,7 +233,9 @@ export function ProductTable({ products, onVisibleCountChange, onRowClick }: Pro
     data: products,
     columns,
     state: { sorting },
-    onSortingChange: setSorting,
+    // Wrap sort state in a transition so re-sorting 100K rows doesn't block
+    // the header click from feeling instant — React time-slices the heavy work.
+    onSortingChange: (updater) => startTransition(() => setSorting(updater)),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });

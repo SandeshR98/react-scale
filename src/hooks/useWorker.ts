@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, startTransition } from "react";
 import type { WorkerRequest, WorkerResponse } from "../workers/protocol";
 
 export function useWorker() {
@@ -12,7 +12,12 @@ export function useWorker() {
     );
 
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
-      setLastResponse(event.data);
+      // startTransition marks this as a non-urgent update so React can
+      // time-slice the 100K-product render instead of blocking the main
+      // thread in one 200ms+ chunk (which triggers the browser violation).
+      startTransition(() => {
+        setLastResponse(event.data);
+      });
     };
 
     workerRef.current = worker;

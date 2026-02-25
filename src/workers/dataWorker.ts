@@ -1,5 +1,5 @@
 import { generateProducts } from "../data/generator";
-import { filterProducts, sortProducts } from "../data/operations";
+import { filterProductIndices, sortProducts } from "../data/operations";
 import type { Product } from "../types/product";
 import type { WorkerRequest, WorkerResponse } from "./protocol";
 
@@ -20,9 +20,12 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
       case "FILTER": {
         const { query, category } = request.payload;
-        const data = filterProducts(cachedDataset, query, category);
-        const response: WorkerResponse = { type: "FILTER", data };
-        self.postMessage(response);
+        // Build a Uint32Array of matching indices and transfer it (zero-copy).
+        // This avoids serializing/deserializing the full Product[] array, which
+        // was causing the '[Violation] message handler took 200-400ms' warnings.
+        const indices = filterProductIndices(cachedDataset, query, category);
+        const response: WorkerResponse = { type: "FILTER", indices };
+        self.postMessage(response, { transfer: [indices.buffer as ArrayBuffer] });
         break;
       }
       case "SORT": {
