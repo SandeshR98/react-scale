@@ -94,7 +94,6 @@ export default function App() {
   // Deferred copy of the virtualized flag — React renders the heavy list change
   // in the background while the switch flips immediately (urgent update).
   const deferredVirtualized = useDeferredValue(state.virtualized);
-  const isVizTransitioning = deferredVirtualized !== state.virtualized;
 
   // ---------------------------------------------------------------------------
   // Handle worker responses
@@ -207,26 +206,32 @@ export default function App() {
     dispatch({ type: "SET_VIRTUALIZATION", value });
   }, []);
 
-  const handleWorkerChange = useCallback(
-    (value: boolean) => {
-      if (!value) {
-        // Disabling worker — discard any in-flight FILTER/SORT from the worker
-        ignoreNextWorkerResultRef.current = true;
-      }
-      dispatch({ type: "SET_WORKER_MODE", value });
-      // Re-run current filter synchronously to get the result, then apply the
-      // heavy SET_DATASET render as a transition so the toggle responds instantly.
-      const { query, category } = filterRef.current;
-      const start = performance.now();
-      const result = filterProducts(fullDatasetRef.current, query, category);
-      const elapsed = performance.now() - start;
-      startTransition(() => {
-        dispatch({ type: "SET_DATASET", products: result });
-        dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
-      });
-    },
-    []
-  );
+  const handleWorkerChange = useCallback((value: boolean) => {
+    if (!value) {
+      // Disabling worker — discard any in-flight FILTER response
+      ignoreNextWorkerResultRef.current = true;
+    }
+    // Only update the flag here so the switch thumb animates instantly.
+    // The filter re-run happens in the useEffect below, after the render.
+    dispatch({ type: "SET_WORKER_MODE", value });
+  }, []);
+
+  // When the worker is turned off, re-apply the current filter on the main
+  // thread so the list stays correct. Done in an effect (not the click handler)
+  // so the toggle responds instantly with no computation blocking the animation.
+  useEffect(() => {
+    if (state.workerEnabled) return;           // worker on — nothing to do
+    if (fullDatasetRef.current.length === 0) return; // dataset not ready yet
+    const { query, category } = filterRef.current;
+    const start = performance.now();
+    const result = filterProducts(fullDatasetRef.current, query, category);
+    const elapsed = performance.now() - start;
+    startTransition(() => {
+      dispatch({ type: "SET_DATASET", products: result });
+      dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.workerEnabled]);
 
   // ---------------------------------------------------------------------------
   // Render
@@ -275,9 +280,12 @@ export default function App() {
         <div
           className="flex-1 min-h-0 overflow-hidden"
           style={{
-            opacity: (isVizTransitioning || isViewTransitioning) ? 0.4 : 1,
+            // Only dim during view-mode switches (list↔grid↔table layout change).
+            // Viz toggle no longer dims — the switch flips instantly and the list
+            // updates silently in the background via useDeferredValue.
+            opacity: isViewTransitioning ? 0.4 : 1,
             transition: "opacity 200ms ease",
-            pointerEvents: (isVizTransitioning || isViewTransitioning) ? "none" : undefined,
+            pointerEvents: isViewTransitioning ? "none" : undefined,
           }}
         >
           {state.isLoading ? (
