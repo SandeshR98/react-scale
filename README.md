@@ -2,10 +2,13 @@
 
 A high-performance React SPA that renders and manages a dataset of **100,000 product cards** without breaking a sweat. Built as a hands-on deep-dive into React performance patterns, virtualization, and Web Workers.
 
+**[Live Demo →](https://react-scale.vercel.app)**
+
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind-4-06B6D4?logo=tailwindcss&logoColor=white)
+![Vercel](https://img.shields.io/badge/Deployed-Vercel-000000?logo=vercel&logoColor=white)
 
 ---
 
