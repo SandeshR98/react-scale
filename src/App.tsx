@@ -1,4 +1,4 @@
-import { useCallback, useDeferredValue, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useReducer, useRef, useState, useTransition } from "react";
 import { ShoppingBag } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FilterBar } from "./components/FilterBar";
@@ -66,8 +66,14 @@ export default function App() {
   // Track visible item count from ProductList virtualizer
   const [visibleCount, setVisibleCount] = useState(0);
 
-  // List / grid view toggle
+  // List / grid / table view toggle
+  // useTransition marks the view switch as non-urgent so React keeps the current
+  // view visible while the new one (e.g. table's getCoreRowModel) initialises.
+  const [isViewTransitioning, startViewTransition] = useTransition();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const handleViewModeChange = useCallback((mode: ViewMode) => {
+    startViewTransition(() => setViewMode(mode));
+  }, []);
 
   // Track current filter params to re-run when worker toggle changes
   const filterRef = useRef({ query: "", category: "" });
@@ -232,7 +238,7 @@ export default function App() {
         <FilterBar
           onFilter={handleFilter}
           viewMode={viewMode}
-          onViewModeChange={setViewMode}
+          onViewModeChange={handleViewModeChange}
         />
 
         {/* Result count bar */}
@@ -254,9 +260,9 @@ export default function App() {
         <div
           className="flex-1 min-h-0 overflow-hidden"
           style={{
-            opacity: isVizTransitioning ? 0.4 : 1,
+            opacity: (isVizTransitioning || isViewTransitioning) ? 0.4 : 1,
             transition: "opacity 200ms ease",
-            pointerEvents: isVizTransitioning ? "none" : undefined,
+            pointerEvents: (isVizTransitioning || isViewTransitioning) ? "none" : undefined,
           }}
         >
           {state.isLoading ? (

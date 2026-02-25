@@ -30,6 +30,11 @@ export function ProductList({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isGrid = viewMode === "grid";
 
+  // Once the table view is visited for the first time, keep ProductTable mounted
+  // (just hidden) so useReactTable's getCoreRowModel never re-runs on re-entry.
+  const hasVisitedTableRef = useRef(false);
+  if (viewMode === "table") hasVisitedTableRef.current = true;
+
   // ─── Modal state ─────────────────────────────────────────────────────────────
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const handleProductClick = useCallback((p: Product) => setSelectedProduct(p), []);
@@ -57,24 +62,13 @@ export function ProductList({
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [viewMode, products]);
 
-  // ─── Build view content ───────────────────────────────────────────────────────
-  // Unified single return so the modal is always rendered regardless of view mode.
+  // ─── Build list / grid content ────────────────────────────────────────────────
+  let listGridContent: React.ReactNode;
 
-  let content: React.ReactNode;
-
-  if (viewMode === "table") {
-    // ── Table — ProductTable manages its own virtualizer ──
-    content = (
-      <ProductTable
-        products={products}
-        onVisibleCountChange={onVisibleCountChange}
-        onRowClick={handleProductClick}
-      />
-    );
-  } else if (virtualized) {
+  if (virtualized) {
     // ── Virtualized list / grid ──
     const virtualItems = virtualizer.getVirtualItems();
-    content = (
+    listGridContent = (
       <div
         ref={scrollRef}
         style={{ height: "100%", overflowY: "auto", backgroundColor: "hsl(var(--muted) / 0.25)" }}
@@ -125,7 +119,7 @@ export function ProductList({
     const NAIVE_CAP = 5_000;
     const naiveItems = products.slice(0, NAIVE_CAP);
     const capped = products.length > NAIVE_CAP;
-    content = (
+    listGridContent = (
       <div style={{ height: "100%", overflowY: "auto", backgroundColor: "hsl(var(--muted) / 0.25)" }}>
         <div className="px-2 py-1 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded mx-2 mt-2 mb-1">
           ⚠ Virtualization OFF — {naiveItems.length.toLocaleString()} nodes mounted in DOM
@@ -153,9 +147,34 @@ export function ProductList({
   }
 
   return (
-    <>
-      {content}
+    <div style={{ height: "100%", position: "relative" }}>
+      {/*
+       * ProductTable is lazily mounted on the first visit to table mode, then
+       * kept alive using visibility:hidden (not display:none) so the scroll
+       * container retains its measured dimensions and TanStack Virtual never
+       * has to re-initialise. getCoreRowModel only pays its cost once.
+       */}
+      {hasVisitedTableRef.current && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            visibility: viewMode === "table" ? "visible" : "hidden",
+            pointerEvents: viewMode === "table" ? "auto" : "none",
+          }}
+        >
+          <ProductTable
+            products={products}
+            onVisibleCountChange={viewMode === "table" ? onVisibleCountChange : undefined}
+            onRowClick={handleProductClick}
+          />
+        </div>
+      )}
+
+      {/* List / Grid views — unmounted while table is active */}
+      {viewMode !== "table" && listGridContent}
+
       <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
-    </>
+    </div>
   );
 }
