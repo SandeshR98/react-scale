@@ -1,7 +1,6 @@
 import {
   startTransition,
   useCallback,
-  useDeferredValue,
   useEffect,
   useMemo,
   useReducer,
@@ -180,6 +179,10 @@ export default function App() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const handleProductClick = useCallback((p: Product) => setSelectedProduct(p), []);
 
+  // True while a worker FILTER request is in-flight (distinct from isLoading
+  // which only covers the initial GENERATE). Drives the "Processing…" indicator.
+  const [workerBusy, setWorkerBusy] = useState(false);
+
   // useTransition keeps the current view visible while the new layout (e.g.
   // table's getCoreRowModel) initialises in the background.
   const [isViewTransitioning, startViewTransition] = useTransition();
@@ -204,10 +207,6 @@ export default function App() {
 
   const { dispatch: workerDispatch, lastResponse } = useWorker();
 
-  // useDeferredValue lets the viz switch flip immediately (urgent) while the
-  // list re-renders lazily in the background.
-  const deferredVirtualized = useDeferredValue(state.virtualized);
-
   useEffect(() => {
     if (!lastResponse) return;
 
@@ -215,7 +214,6 @@ export default function App() {
 
     switch (lastResponse.type) {
       case "GENERATE": {
-        // Urgent — replaces the loading skeleton immediately.
         const { data } = lastResponse;
         fullDatasetRef.current = data;
         dispatch({ type: "SET_DATASET", products: data });
@@ -223,6 +221,7 @@ export default function App() {
         break;
       }
       case "FILTER": {
+        setWorkerBusy(false);
         if (ignoreNextWorkerResultRef.current) {
           ignoreNextWorkerResultRef.current = false;
           break;
@@ -236,6 +235,7 @@ export default function App() {
         break;
       }
       case "SORT": {
+        setWorkerBusy(false);
         if (ignoreNextWorkerResultRef.current) {
           ignoreNextWorkerResultRef.current = false;
           break;
@@ -288,6 +288,7 @@ export default function App() {
       ignoreNextWorkerResultRef.current = false;
 
       if (workerEnabledRef.current) {
+        setWorkerBusy(true);
         workerDispatch({ type: "FILTER", payload: { query, category } });
       } else {
         const start = performance.now();
@@ -306,12 +307,19 @@ export default function App() {
   }, []);
 
   const handleWorkerChange = useCallback((value: boolean) => {
-    if (!value) ignoreNextWorkerResultRef.current = true;
+    if (!value) {
+      // Turning OFF: ignore any in-flight worker result and clear busy flag.
+      ignoreNextWorkerResultRef.current = true;
+      setWorkerBusy(false);
+    } else {
+      // Turning ON: clear the ignore flag so the next worker result is applied.
+      ignoreNextWorkerResultRef.current = false;
+    }
     dispatch({ type: "SET_WORKER_MODE", value });
   }, []);
 
-  // When the worker is disabled, re-apply the current filter on the main thread.
-  // Running this in an effect (not the click handler) keeps the toggle instant.
+  // Worker disabled → re-apply current filter on the main thread so results stay
+  // in sync. Running in an effect (not the click handler) keeps the toggle instant.
   useEffect(() => {
     if (state.workerEnabled || fullDatasetRef.current.length === 0) return;
     const { query, category } = filterRef.current;
@@ -324,6 +332,18 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.workerEnabled]);
 
+  // Worker enabled → re-dispatch the active filter through the worker so the
+  // panel immediately shows a real worker timing for the current query.
+  useEffect(() => {
+    if (!state.workerEnabled || fullDatasetRef.current.length === 0) return;
+    const { query, category } = filterRef.current;
+    if (query === "" && category === "") return; // no active filter
+    opStartRef.current = performance.now();
+    setWorkerBusy(true);
+    workerDispatch({ type: "FILTER", payload: { query, category } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.workerEnabled]);
+
   // Memoized so ProductList's memo() can bail out when only selectedProduct changes.
   const loadingFallback = useMemo(() => skeletonFor(viewMode), [viewMode]);
 
@@ -332,6 +352,7 @@ export default function App() {
     totalItems: state.displayedProducts.length,
     visibleItems: visibleCount,
     virtualized: state.virtualized,
+    workerBusy,
     workerEnabled: state.workerEnabled,
     isLoading: state.isLoading,
     onVirtualizationChange: handleVirtualizationChange,
@@ -393,7 +414,7 @@ export default function App() {
           ) : (
             <ProductList
               products={state.displayedProducts}
-              virtualized={deferredVirtualized}
+              virtualized={state.virtualized}
               viewMode={viewMode}
               onVisibleCountChange={setVisibleCount}
               loadingFallback={loadingFallback}
