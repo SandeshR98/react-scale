@@ -38,3 +38,9 @@ export function trendVariant(score: number): "default" | "secondary" | "outline"
   if (score >= 30) return "secondary";
   return "outline";
 }
+
+export function stockLabel(stock: number): string {
+  if (stock <= 50)  return `Only ${stock} left`;
+  if (stock <= 200) return `${stock} in stock`;
+  return "In stock";
+}

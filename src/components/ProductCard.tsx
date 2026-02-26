@@ -7,6 +7,7 @@ import {
   CATEGORY_ICON,
   productImgUrl,
   stockColor,
+  stockLabel,
   trendVariant,
 } from "@/lib/product-utils";
 import { Stars } from "./Stars";
@@ -19,12 +20,6 @@ type ProductCardProps = {
   viewMode?: ViewMode;
   onClick?: (product: Product) => void;
 };
-
-function stockLabel(stock: number): string {
-  if (stock <= 50)  return `Only ${stock} left`;
-  if (stock <= 200) return `${stock} in stock`;
-  return "In stock";
-}
 
 function GridCard({ product, onClick }: { product: Product; onClick?: () => void }) {
   const accentColor = CATEGORY_COLOR[product.category] ?? "#6b7280";

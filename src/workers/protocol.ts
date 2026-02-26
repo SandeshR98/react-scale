@@ -20,20 +20,17 @@ export type WorkerRequest = GenerateRequest | FilterRequest | SortRequest;
 export type GenerateResponse = {
   type: "GENERATE";
   data: Product[];
-  error?: string;
 };
 
 // Transferable Uint32Array — zero-copy; main thread rebuilds Product[] via fullDatasetRef.
 export type FilterResponse = {
   type: "FILTER";
   indices: Uint32Array;
-  error?: string;
 };
 
 export type SortResponse = {
   type: "SORT";
   data: Product[];
-  error?: string;
 };
 
 export type ErrorResponse = {
