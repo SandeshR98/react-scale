@@ -152,7 +152,7 @@ export function PerformancePanel({
           <p className="text-[11px] leading-relaxed text-muted-foreground pl-8">
             {virtualized
               ? `${visibleItems} of ${totalItems.toLocaleString()} nodes in viewport`
-              : "All nodes mounted — scroll to feel the difference"}
+              : "Scroll to feel the difference in performance — open the modal on each item"}
           </p>
         </div>
 
