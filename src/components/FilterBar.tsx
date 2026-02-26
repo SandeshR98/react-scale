@@ -11,11 +11,11 @@ import {
 import { CATEGORIES } from "../data/generator";
 import type { ViewMode } from "./ProductCard";
 
-interface FilterBarProps {
+type FilterBarProps = {
   onFilter: (query: string, category: string) => void;
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
-}
+};
 
 const ALL_CATEGORIES = "__all__";
 

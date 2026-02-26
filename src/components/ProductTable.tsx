@@ -178,11 +178,11 @@ function useColumns(): ColumnDef<Product>[] {
   ], []);
 }
 
-interface ProductTableProps {
+type ProductTableProps = {
   products: Product[];
   onVisibleCountChange?: (count: number) => void;
   onRowClick?: (product: Product) => void;
-}
+};
 
 export function ProductTable({ products, onVisibleCountChange, onRowClick }: ProductTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);

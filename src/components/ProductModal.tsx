@@ -42,10 +42,10 @@ function StatBlock({
   );
 }
 
-interface ProductModalProps {
+type ProductModalProps = {
   product: Product | null;
   onClose: () => void;
-}
+};
 
 export function ProductModal({ product, onClose }: ProductModalProps) {
   const accentColor = product ? (CATEGORY_COLOR[product.category] ?? "#6b7280") : "#6b7280";

@@ -128,13 +128,13 @@ function skeletonFor(mode: ViewMode) {
   );
 }
 
-interface AppState {
+type AppState = {
   workerEnabled: boolean;
   virtualized: boolean;
   displayedProducts: Product[];
   lastOperationMs: number;
   isLoading: boolean;
-}
+};
 
 type AppAction =
   | { type: "SET_WORKER_MODE"; value: boolean }

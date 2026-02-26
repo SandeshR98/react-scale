@@ -51,7 +51,7 @@ const NaiveChunk = memo(function NaiveChunk({
   );
 });
 
-interface ProductListProps {
+type ProductListProps = {
   products: Product[];
   virtualized: boolean;
   viewMode: ViewMode;
@@ -60,7 +60,7 @@ interface ProductListProps {
   loadingFallback?: ReactNode;
   /** Lifted to App so opening a modal doesn't re-render this component. */
   onProductClick?: (product: Product) => void;
-}
+};
 
 // memo() ensures ProductList skips reconciliation when only unrelated App
 // state changes (e.g. selectedProduct for the modal).

@@ -14,11 +14,11 @@ import type { Product } from "../types/product";
 
 export type ViewMode = "list" | "grid" | "table";
 
-interface ProductCardProps {
+type ProductCardProps = {
   product: Product;
   viewMode?: ViewMode;
   onClick?: (product: Product) => void;
-}
+};
 
 function stockLabel(stock: number): string {
   if (stock <= 50)  return `Only ${stock} left`;

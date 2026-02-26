@@ -4,7 +4,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 
-interface PerformancePanelProps {
+type PerformancePanelProps = {
   lastOperationMs: number;
   totalItems: number;
   visibleItems: number;
@@ -14,7 +14,7 @@ interface PerformancePanelProps {
   workerBusy: boolean;
   onVirtualizationChange: (value: boolean) => void;
   onWorkerChange: (value: boolean) => void;
-}
+};
 
 function operationColor(ms: number): string | undefined {
   if (ms === 0)  return undefined;
