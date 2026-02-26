@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, startTransition } from "react";
+import { useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useReactTable,
@@ -27,6 +27,7 @@ import { Stars } from "./Stars";
 import type { Product } from "../types/product";
 
 const TABLE_ROW_HEIGHT = 56;
+const NAIVE_CAP = 5_000;
 
 function SortIcon({ sorted }: { sorted: false | "asc" | "desc" }) {
   if (sorted === "asc")  return <ChevronUp  className="h-3 w-3 shrink-0 text-foreground" />;
@@ -180,11 +181,12 @@ function useColumns(): ColumnDef<Product>[] {
 
 type ProductTableProps = {
   products: Product[];
+  virtualized: boolean;
   onVisibleCountChange?: (count: number) => void;
   onRowClick?: (product: Product) => void;
 };
 
-export function ProductTable({ products, onVisibleCountChange, onRowClick }: ProductTableProps) {
+export function ProductTable({ products, virtualized, onVisibleCountChange, onRowClick }: ProductTableProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [sorting, setSorting] = useState<SortingState>([]);
   const columns = useColumns();
@@ -203,23 +205,48 @@ export function ProductTable({ products, onVisibleCountChange, onRowClick }: Pro
 
   const { rows } = table.getRowModel();
 
+  // Naive rows capped at 5K — same DOM-safety limit as list/grid naive mode.
+  const naiveRows = useMemo(
+    () => (virtualized ? [] : rows.slice(0, NAIVE_CAP)),
+    [virtualized, rows]
+  );
+
   const virtualizer = useVirtualizer({
-    count: rows.length,
+    count: virtualized ? rows.length : 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => TABLE_ROW_HEIGHT,
     overscan: 10,
     onChange: (instance) => {
-      onVisibleCountChange?.(instance.getVirtualItems().length);
+      if (virtualized) onVisibleCountChange?.(instance.getVirtualItems().length);
     },
   });
 
+  // Report visible row count to the panel when in naive mode.
+  useEffect(() => {
+    if (!virtualized) {
+      onVisibleCountChange?.(naiveRows.length);
+    }
+  }, [virtualized, naiveRows.length, onVisibleCountChange]);
+
   const virtualItems = virtualizer.getVirtualItems();
+  const capped = !virtualized && rows.length > NAIVE_CAP;
 
   return (
     <div
       ref={scrollRef}
       style={{ height: "100%", overflowY: "auto", backgroundColor: "hsl(var(--muted) / 0.25)" }}
     >
+      {!virtualized && (
+        <div className="px-3 py-1.5 mx-2 mt-2 mb-1 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+          ⚠ Virtualization OFF — {Math.min(rows.length, NAIVE_CAP).toLocaleString()} rows in DOM
+          {capped && (
+            <span className="ml-1 text-destructive/70">
+              (capped from {rows.length.toLocaleString()} — enable virtualization to see all)
+            </span>
+          )}
+        </div>
+      )}
+
       {/*
        * display:"grid" on <table>/<thead>/<tbody> enables position:sticky on
        * the header and position:absolute on each <tr> for TanStack Virtual.
@@ -258,40 +285,73 @@ export function ProductTable({ products, onVisibleCountChange, onRowClick }: Pro
         </TableHeader>
 
         <TableBody
-          style={{ display: "grid", height: `${virtualizer.getTotalSize()}px`, position: "relative" }}
+          style={
+            virtualized
+              ? { display: "grid", height: `${virtualizer.getTotalSize()}px`, position: "relative" }
+              : { display: "grid" }
+          }
         >
-          {virtualItems.map((virtualRow) => {
-            const row = rows[virtualRow.index];
-            return (
-              <TableRow
-                key={row.id}
-                style={{
-                  display: "flex",
-                  position: "absolute",
-                  transform: `translateY(${virtualRow.start}px)`,
-                  width: "100%",
-                  height: TABLE_ROW_HEIGHT,
-                  alignItems: "center",
-                }}
-                className="border-b border-border/50 hover:bg-background/80 transition-colors cursor-pointer"
-                onClick={() => onRowClick?.(row.original)}
-              >
-                {row.getVisibleCells().map((cell) => (
-                  <TableCell
-                    key={cell.id}
+          {virtualized
+            ? virtualItems.map((virtualRow) => {
+                const row = rows[virtualRow.index];
+                return (
+                  <TableRow
+                    key={row.id}
                     style={{
                       display: "flex",
+                      position: "absolute",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      width: "100%",
+                      height: TABLE_ROW_HEIGHT,
                       alignItems: "center",
-                      width: cell.column.getSize(),
-                      overflow: "hidden",
                     }}
+                    className="border-b border-border/50 hover:bg-background/80 transition-colors cursor-pointer"
+                    onClick={() => onRowClick?.(row.original)}
                   >
-                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                  </TableCell>
-                ))}
-              </TableRow>
-            );
-          })}
+                    {row.getVisibleCells().map((cell) => (
+                      <TableCell
+                        key={cell.id}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          width: cell.column.getSize(),
+                          overflow: "hidden",
+                        }}
+                      >
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                );
+              })
+            : naiveRows.map((row) => (
+                <TableRow
+                  key={row.id}
+                  style={{
+                    display: "flex",
+                    width: "100%",
+                    height: TABLE_ROW_HEIGHT,
+                    alignItems: "center",
+                  }}
+                  className="border-b border-border/50 hover:bg-background/80 transition-colors cursor-pointer"
+                  onClick={() => onRowClick?.(row.original)}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell
+                      key={cell.id}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        width: cell.column.getSize(),
+                        overflow: "hidden",
+                      }}
+                    >
+                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              ))
+          }
         </TableBody>
       </table>
     </div>

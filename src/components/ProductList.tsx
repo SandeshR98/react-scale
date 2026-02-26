@@ -261,6 +261,7 @@ export const ProductList = memo(function ProductList({
         >
           <ProductTable
             products={products}
+            virtualized={virtualized}
             onVisibleCountChange={viewMode === "table" ? onVisibleCountChange : undefined}
             onRowClick={onProductClick}
           />
