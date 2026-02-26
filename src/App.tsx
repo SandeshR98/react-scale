@@ -271,13 +271,23 @@ export default function App() {
             <h1 className="text-base font-bold leading-none tracking-tight">ReactScale</h1>
             <p className="text-xs text-muted-foreground mt-0.5">100K virtualized product explorer</p>
           </div>
-          <button
-            onClick={() => setShowPanel((v) => !v)}
-            className="ml-auto lg:hidden rounded-lg p-2 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Toggle metrics panel"
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-          </button>
+          <div className="ml-auto flex items-center gap-2">
+            <a
+              href="https://sandeshrathnayake.medium.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:block text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              by Sandesh Rathnayake
+            </a>
+            <button
+              onClick={() => setShowPanel((v) => !v)}
+              className="lg:hidden rounded-lg p-2 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Toggle metrics panel"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <FilterBar
