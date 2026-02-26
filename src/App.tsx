@@ -1,5 +1,14 @@
-import { startTransition, useCallback, useDeferredValue, useEffect, useReducer, useRef, useState, useTransition } from "react";
-import { ShoppingBag } from "lucide-react";
+import {
+  startTransition,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { ShoppingBag, SlidersHorizontal } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FilterBar } from "./components/FilterBar";
 import { PerformancePanel } from "./components/PerformancePanel";
@@ -9,11 +18,6 @@ import { filterProducts } from "./data/operations";
 import type { Product } from "./types/product";
 import type { ViewMode } from "./components/ProductCard";
 import { useWorker } from "./hooks/useWorker";
-import type { WorkerResponse } from "./workers/protocol";
-
-// ---------------------------------------------------------------------------
-// State
-// ---------------------------------------------------------------------------
 
 interface AppState {
   workerEnabled: boolean;
@@ -53,51 +57,42 @@ const INITIAL_STATE: AppState = {
   isLoading: true,
 };
 
-// ---------------------------------------------------------------------------
-// App
-// ---------------------------------------------------------------------------
-
 export default function App() {
   const [state, dispatch] = useReducer(appReducer, INITIAL_STATE);
 
-  // Full 100K dataset stored in a ref — never causes re-renders on its own
+  // Full 100K dataset in a ref — never triggers re-renders on its own.
   const fullDatasetRef = useRef<Product[]>([]);
 
-  // Track visible item count from ProductList virtualizer
   const [visibleCount, setVisibleCount] = useState(0);
+  const [showPanel, setShowPanel] = useState(false);
 
-  // List / grid / table view toggle
-  // useTransition marks the view switch as non-urgent so React keeps the current
-  // view visible while the new one (e.g. table's getCoreRowModel) initialises.
+  // useTransition keeps the current view visible while the new layout (e.g.
+  // table's getCoreRowModel) initialises in the background.
   const [isViewTransitioning, startViewTransition] = useTransition();
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const handleViewModeChange = useCallback((mode: ViewMode) => {
     startViewTransition(() => setViewMode(mode));
   }, []);
 
-  // Track current filter params to re-run when worker toggle changes
   const filterRef = useRef({ query: "", category: "" });
 
-  // Ref-tracked so handleFilter can read the latest value without recreating
+  // Written every render so handleFilter always reads the current value
+  // without being recreated when the worker toggle changes — prevents
+  // FilterBar's debounce from re-firing spuriously.
   const workerEnabledRef = useRef(state.workerEnabled);
   workerEnabledRef.current = state.workerEnabled;
 
-  // Operation start time for perf measurement
   const opStartRef = useRef<number>(0);
 
-  // When the short-circuit path serves fullDatasetRef directly, any in-flight
-  // worker FILTER/SORT response that arrives afterward should be discarded.
+  // Guards against stale in-flight FILTER responses arriving after the
+  // short-circuit (no-filter) path or after the worker is toggled off.
   const ignoreNextWorkerResultRef = useRef(false);
 
   const { dispatch: workerDispatch, lastResponse } = useWorker();
 
-  // Deferred copy of the virtualized flag — React renders the heavy list change
-  // in the background while the switch flips immediately (urgent update).
+  // useDeferredValue lets the viz switch flip immediately (urgent) while the
+  // list re-renders lazily in the background — no content area dimming needed.
   const deferredVirtualized = useDeferredValue(state.virtualized);
-
-  // ---------------------------------------------------------------------------
-  // Handle worker responses
-  // ---------------------------------------------------------------------------
 
   useEffect(() => {
     if (!lastResponse) return;
@@ -106,7 +101,8 @@ export default function App() {
 
     switch (lastResponse.type) {
       case "GENERATE": {
-        const data = (lastResponse as Extract<WorkerResponse, { type: "GENERATE" }>).data;
+        // Urgent — replaces the loading skeleton immediately.
+        const { data } = lastResponse;
         fullDatasetRef.current = data;
         dispatch({ type: "SET_DATASET", products: data });
         dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
@@ -117,12 +113,12 @@ export default function App() {
           ignoreNextWorkerResultRef.current = false;
           break;
         }
-        // Worker transferred a Uint32Array of matching indices (zero-copy).
-        // Reconstruct the Product[] from the cached full dataset using those indices.
-        const { indices } = lastResponse as Extract<WorkerResponse, { type: "FILTER" }>;
+        const { indices } = lastResponse;
         const data = Array.from(indices, (i) => fullDatasetRef.current[i]);
-        dispatch({ type: "SET_DATASET", products: data });
-        dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+        startTransition(() => {
+          dispatch({ type: "SET_DATASET", products: data });
+          dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+        });
         break;
       }
       case "SORT": {
@@ -130,18 +126,17 @@ export default function App() {
           ignoreNextWorkerResultRef.current = false;
           break;
         }
-        const sortData = (lastResponse as Extract<WorkerResponse, { type: "SORT" }>).data;
-        dispatch({ type: "SET_DATASET", products: sortData });
-        dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+        const { data } = lastResponse;
+        startTransition(() => {
+          dispatch({ type: "SET_DATASET", products: data });
+          dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+        });
         break;
       }
     }
   }, [lastResponse]);
 
-  // ---------------------------------------------------------------------------
-  // Initial dataset generation
-  // ---------------------------------------------------------------------------
-
+  // Generate the initial dataset once on mount.
   useEffect(() => {
     dispatch({ type: "SET_LOADING", value: true });
     opStartRef.current = performance.now();
@@ -151,117 +146,107 @@ export default function App() {
     } else {
       const start = performance.now();
       const data = generateProducts(100_000);
-      const elapsed = performance.now() - start;
       fullDatasetRef.current = data;
       dispatch({ type: "SET_DATASET", products: data });
-      dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+      dispatch({ type: "SET_OPERATION_TIME", ms: performance.now() - start });
     }
-    // Only run once on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------------------------------------------------------------------------
-  // Filter handler (called by FilterBar)
-  // ---------------------------------------------------------------------------
-
-  // Stable callback — reads workerEnabledRef so it never recreates due to mode changes.
-  // FilterBar's debounce effect won't re-fire spuriously when the worker toggle changes.
+  // Stable callback — reads workerEnabledRef so its identity never changes
+  // when the worker toggle flips, preventing FilterBar's debounce from re-firing.
   const handleFilter = useCallback(
     (query: string, category: string) => {
       filterRef.current = { query, category };
 
-      // Dataset not ready yet (called during loading) — skip
       if (fullDatasetRef.current.length === 0) return;
 
-      // No filter active — serve full dataset directly, no worker round-trip needed
       if (query === "" && category === "") {
-        ignoreNextWorkerResultRef.current = true; // discard any in-flight FILTER response
-        dispatch({ type: "SET_DATASET", products: fullDatasetRef.current });
-        dispatch({ type: "SET_OPERATION_TIME", ms: 0 });
+        ignoreNextWorkerResultRef.current = true;
+        startTransition(() => {
+          dispatch({ type: "SET_DATASET", products: fullDatasetRef.current });
+          dispatch({ type: "SET_OPERATION_TIME", ms: 0 });
+        });
         return;
       }
 
       opStartRef.current = performance.now();
-      ignoreNextWorkerResultRef.current = false; // this new worker request should be applied
+      ignoreNextWorkerResultRef.current = false;
 
       if (workerEnabledRef.current) {
-        // Worker uses its cached dataset — no serialization overhead on send or receive
         workerDispatch({ type: "FILTER", payload: { query, category } });
       } else {
         const start = performance.now();
         const result = filterProducts(fullDatasetRef.current, query, category);
-        const elapsed = performance.now() - start;
-        dispatch({ type: "SET_DATASET", products: result });
-        dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+        startTransition(() => {
+          dispatch({ type: "SET_DATASET", products: result });
+          dispatch({ type: "SET_OPERATION_TIME", ms: performance.now() - start });
+        });
       }
     },
     [workerDispatch]
   );
-
-  // ---------------------------------------------------------------------------
-  // Toggle handlers
-  // ---------------------------------------------------------------------------
 
   const handleVirtualizationChange = useCallback((value: boolean) => {
     dispatch({ type: "SET_VIRTUALIZATION", value });
   }, []);
 
   const handleWorkerChange = useCallback((value: boolean) => {
-    if (!value) {
-      // Disabling worker — discard any in-flight FILTER response
-      ignoreNextWorkerResultRef.current = true;
-    }
-    // Only update the flag here so the switch thumb animates instantly.
-    // The filter re-run happens in the useEffect below, after the render.
+    if (!value) ignoreNextWorkerResultRef.current = true;
     dispatch({ type: "SET_WORKER_MODE", value });
   }, []);
 
-  // When the worker is turned off, re-apply the current filter on the main
-  // thread so the list stays correct. Done in an effect (not the click handler)
-  // so the toggle responds instantly with no computation blocking the animation.
+  // When the worker is disabled, re-apply the current filter on the main thread.
+  // Running this in an effect (not the click handler) keeps the toggle instant.
   useEffect(() => {
-    if (state.workerEnabled) return;           // worker on — nothing to do
-    if (fullDatasetRef.current.length === 0) return; // dataset not ready yet
+    if (state.workerEnabled || fullDatasetRef.current.length === 0) return;
     const { query, category } = filterRef.current;
     const start = performance.now();
     const result = filterProducts(fullDatasetRef.current, query, category);
-    const elapsed = performance.now() - start;
     startTransition(() => {
       dispatch({ type: "SET_DATASET", products: result });
-      dispatch({ type: "SET_OPERATION_TIME", ms: elapsed });
+      dispatch({ type: "SET_OPERATION_TIME", ms: performance.now() - start });
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.workerEnabled]);
 
-  // ---------------------------------------------------------------------------
-  // Render
-  // ---------------------------------------------------------------------------
+  const panelProps = {
+    lastOperationMs: state.lastOperationMs,
+    totalItems: state.displayedProducts.length,
+    visibleItems: deferredVirtualized ? visibleCount : state.displayedProducts.length,
+    virtualized: state.virtualized,
+    workerEnabled: state.workerEnabled,
+    isLoading: state.isLoading,
+    onVirtualizationChange: handleVirtualizationChange,
+    onWorkerChange: handleWorkerChange,
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background text-foreground">
-      {/* Main content */}
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* Header */}
         <div className="px-4 py-3 border-b border-border flex items-center gap-3 shrink-0">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
             <ShoppingBag className="h-4 w-4 text-primary" />
           </div>
           <div>
             <h1 className="text-base font-bold leading-none tracking-tight">ReactScale</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              100K virtualized product explorer
-            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">100K virtualized product explorer</p>
           </div>
+          <button
+            onClick={() => setShowPanel((v) => !v)}
+            className="ml-auto lg:hidden rounded-lg p-2 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
+            aria-label="Toggle metrics panel"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* Filter bar */}
         <FilterBar
           onFilter={handleFilter}
           viewMode={viewMode}
           onViewModeChange={handleViewModeChange}
         />
 
-        {/* Result count bar */}
         {!state.isLoading && (
           <div className="px-4 py-1.5 border-b border-border/50 bg-muted/20 shrink-0 flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
@@ -276,13 +261,9 @@ export default function App() {
           </div>
         )}
 
-        {/* Product list */}
         <div
           className="flex-1 min-h-0 overflow-hidden"
           style={{
-            // Only dim during view-mode switches (list↔grid↔table layout change).
-            // Viz toggle no longer dims — the switch flips instantly and the list
-            // updates silently in the background via useDeferredValue.
             opacity: isViewTransitioning ? 0.4 : 1,
             transition: "opacity 200ms ease",
             pointerEvents: isViewTransitioning ? "none" : undefined,
@@ -305,18 +286,26 @@ export default function App() {
         </div>
       </div>
 
-      {/* Performance panel sidebar */}
-      <div className="w-56 shrink-0">
-        <PerformancePanel
-          lastOperationMs={state.lastOperationMs}
-          totalItems={state.displayedProducts.length}
-          visibleItems={deferredVirtualized ? visibleCount : state.displayedProducts.length}
-          virtualized={state.virtualized}
-          workerEnabled={state.workerEnabled}
-          isLoading={state.isLoading}
-          onVirtualizationChange={handleVirtualizationChange}
-          onWorkerChange={handleWorkerChange}
+      {/* Desktop sidebar — always visible on lg+ */}
+      <div className="hidden lg:block w-56 shrink-0">
+        <PerformancePanel {...panelProps} />
+      </div>
+
+      {/* Mobile drawer — slide in from right */}
+      {showPanel && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setShowPanel(false)}
         />
+      )}
+      <div
+        className={`
+          fixed inset-y-0 right-0 z-50 w-64 lg:hidden
+          transition-transform duration-300 ease-in-out
+          ${showPanel ? "translate-x-0" : "translate-x-full"}
+        `}
+      >
+        <PerformancePanel {...panelProps} />
       </div>
     </div>
   );

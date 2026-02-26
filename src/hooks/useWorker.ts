@@ -11,10 +11,9 @@ export function useWorker() {
       { type: "module" }
     );
 
+    // startTransition defers the re-render so React can time-slice instead of
+    // blocking for the full 100K-product update in a single synchronous chunk.
     worker.onmessage = (event: MessageEvent<WorkerResponse>) => {
-      // startTransition marks this as a non-urgent update so React can
-      // time-slice the 100K-product render instead of blocking the main
-      // thread in one 200ms+ chunk (which triggers the browser violation).
       startTransition(() => {
         setLastResponse(event.data);
       });
@@ -28,7 +27,6 @@ export function useWorker() {
     };
   }, []);
 
-  // Stable reference — uses ref internally so it never changes identity
   const dispatch = useCallback((request: WorkerRequest) => {
     workerRef.current?.postMessage(request);
   }, []);

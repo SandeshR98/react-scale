@@ -24,7 +24,6 @@ export function FilterBar({ onFilter, viewMode, onViewModeChange }: FilterBarPro
   const [category, setCategory] = useState(ALL_CATEGORIES);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Debounce query changes 300ms; category fires immediately
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -36,9 +35,8 @@ export function FilterBar({ onFilter, viewMode, onViewModeChange }: FilterBarPro
   }, [query, category, onFilter]);
 
   return (
-    <div className="flex gap-3 items-center px-4 py-2.5 border-b border-border bg-background shrink-0">
-      {/* Search input with icon */}
-      <div className="relative flex-1">
+    <div className="flex flex-wrap gap-2 items-center px-4 py-2.5 border-b border-border bg-background shrink-0">
+      <div className="relative flex-1 min-w-48">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
         <Input
           type="text"
@@ -58,7 +56,6 @@ export function FilterBar({ onFilter, viewMode, onViewModeChange }: FilterBarPro
         )}
       </div>
 
-      {/* Category filter */}
       <Select value={category} onValueChange={setCategory}>
         <SelectTrigger className="w-44 h-9 text-sm">
           <SelectValue placeholder="All Categories" />
@@ -73,7 +70,6 @@ export function FilterBar({ onFilter, viewMode, onViewModeChange }: FilterBarPro
         </SelectContent>
       </Select>
 
-      {/* View mode toggle */}
       <div className="flex items-center border border-border rounded-md overflow-hidden shrink-0">
         {(
           [

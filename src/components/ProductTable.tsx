@@ -17,59 +17,22 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  CATEGORY_COLOR,
+  productImgUrl,
+  stockColor,
+  trendVariant,
+} from "@/lib/product-utils";
+import { Stars } from "./Stars";
 import type { Product } from "../types/product";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-
 const TABLE_ROW_HEIGHT = 56;
-
-const CATEGORY_COLOR: Record<string, string> = {
-  "Electronics":   "#3b82f6",
-  "Clothing":      "#a855f7",
-  "Home & Garden": "#22c55e",
-  "Sports":        "#f97316",
-  "Books":         "#f59e0b",
-  "Toys":          "#ec4899",
-};
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function productImgUrl(id: number): string {
-  return `https://picsum.photos/seed/${(id - 1) % 50}/80/80`;
-}
-
-function stockColor(stock: number): string {
-  if (stock <= 50)  return "#ef4444";
-  if (stock <= 200) return "#f59e0b";
-  return "#22c55e";
-}
-
-function trendVariant(score: number): "default" | "secondary" | "outline" {
-  if (score >= 70) return "default";
-  if (score >= 30) return "secondary";
-  return "outline";
-}
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-function Stars({ rating }: { rating: number }) {
-  const filled = Math.round(rating);
-  return (
-    <span style={{ display: "inline-flex", lineHeight: 1 }}>
-      {Array.from({ length: 5 }, (_, i) => (
-        <span key={i} style={{ color: i < filled ? "#f59e0b" : "#d1d5db", fontSize: "0.7rem" }}>★</span>
-      ))}
-    </span>
-  );
-}
 
 function SortIcon({ sorted }: { sorted: false | "asc" | "desc" }) {
   if (sorted === "asc")  return <ChevronUp  className="h-3 w-3 shrink-0 text-foreground" />;
   if (sorted === "desc") return <ChevronDown className="h-3 w-3 shrink-0 text-foreground" />;
   return <ChevronsUpDown className="h-3 w-3 shrink-0 text-muted-foreground/40" />;
 }
-
-// ─── Column definitions ───────────────────────────────────────────────────────
 
 function useColumns(): ColumnDef<Product>[] {
   return useMemo<ColumnDef<Product>[]>(() => [
@@ -166,7 +129,7 @@ function useColumns(): ColumnDef<Product>[] {
       size: 130,
       cell: ({ row }) => (
         <div className="flex items-center gap-1.5">
-          <Stars rating={row.original.rating} />
+          <Stars rating={row.original.rating} fontSize="0.7rem" />
           <span className="text-xs text-muted-foreground tabular-nums">
             ({row.original.rating.toFixed(1)})
           </span>
@@ -215,8 +178,6 @@ function useColumns(): ColumnDef<Product>[] {
   ], []);
 }
 
-// ─── ProductTable ─────────────────────────────────────────────────────────────
-
 interface ProductTableProps {
   products: Product[];
   onVisibleCountChange?: (count: number) => void;
@@ -233,8 +194,8 @@ export function ProductTable({ products, onVisibleCountChange, onRowClick }: Pro
     data: products,
     columns,
     state: { sorting },
-    // Wrap sort state in a transition so re-sorting 100K rows doesn't block
-    // the header click from feeling instant — React time-slices the heavy work.
+    // startTransition lets React time-slice the 100K-row re-sort so the
+    // column header click feels instant rather than blocking for 100-200ms.
     onSortingChange: (updater) => startTransition(() => setSorting(updater)),
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -261,11 +222,9 @@ export function ProductTable({ products, onVisibleCountChange, onRowClick }: Pro
       style={{ height: "100%", overflowY: "auto", backgroundColor: "hsl(var(--muted) / 0.25)" }}
     >
       {/*
-       * Plain <table> owns the scroll context.
-       * display:"grid" on <table>/<thead>/<tbody> unlocks position:sticky on
-       * <thead> and position:absolute on each <tr> for TanStack Virtual.
-       * Shadcn TableHeader / TableBody / TableRow / TableHead / TableCell are
-       * used for their class-based styling only.
+       * display:"grid" on <table>/<thead>/<tbody> enables position:sticky on
+       * the header and position:absolute on each <tr> for TanStack Virtual.
+       * Shadcn table components are used for their class-based styling only.
        */}
       <table style={{ display: "grid", width: "100%", minWidth: "max-content" }}>
         <TableHeader

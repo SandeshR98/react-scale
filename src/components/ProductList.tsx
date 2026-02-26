@@ -35,7 +35,6 @@ export function ProductList({
   const hasVisitedTableRef = useRef(false);
   if (viewMode === "table") hasVisitedTableRef.current = true;
 
-  // ─── Modal state ─────────────────────────────────────────────────────────────
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const handleProductClick = useCallback((p: Product) => setSelectedProduct(p), []);
 
@@ -62,11 +61,9 @@ export function ProductList({
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [viewMode, products]);
 
-  // ─── Build list / grid content ────────────────────────────────────────────────
   let listGridContent: React.ReactNode;
 
   if (virtualized) {
-    // ── Virtualized list / grid ──
     const virtualItems = virtualizer.getVirtualItems();
     listGridContent = (
       <div
@@ -115,7 +112,6 @@ export function ProductList({
       </div>
     );
   } else {
-    // ── Non-virtualized (naive, capped) ──
     const NAIVE_CAP = 5_000;
     const naiveItems = products.slice(0, NAIVE_CAP);
     const capped = products.length > NAIVE_CAP;
@@ -171,7 +167,6 @@ export function ProductList({
         </div>
       )}
 
-      {/* List / Grid views — unmounted while table is active */}
       {viewMode !== "table" && listGridContent}
 
       <ProductModal product={selectedProduct} onClose={() => setSelectedProduct(null)} />
