@@ -175,6 +175,11 @@ export default function App() {
   const [visibleCount, setVisibleCount] = useState(0);
   const [showPanel, setShowPanel] = useState(false);
 
+  // Optimistic switch display — updated immediately on click so the toggle
+  // thumb animates without waiting for the deferred list re-render to commit.
+  const [uiVirtualized, setUiVirtualized] = useState(INITIAL_STATE.virtualized);
+  const [uiWorkerEnabled, setUiWorkerEnabled] = useState(INITIAL_STATE.workerEnabled);
+
   // Lifted out of ProductList so opening a modal never re-renders the 5K list.
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const handleProductClick = useCallback((p: Product) => setSelectedProduct(p), []);
@@ -303,19 +308,23 @@ export default function App() {
   );
 
   const handleVirtualizationChange = useCallback((value: boolean) => {
-    dispatch({ type: "SET_VIRTUALIZATION", value });
+    setUiVirtualized(value);
+    startTransition(() => {
+      dispatch({ type: "SET_VIRTUALIZATION", value });
+    });
   }, []);
 
   const handleWorkerChange = useCallback((value: boolean) => {
+    setUiWorkerEnabled(value);
     if (!value) {
-      // Turning OFF: ignore any in-flight worker result and clear busy flag.
       ignoreNextWorkerResultRef.current = true;
       setWorkerBusy(false);
     } else {
-      // Turning ON: clear the ignore flag so the next worker result is applied.
       ignoreNextWorkerResultRef.current = false;
     }
-    dispatch({ type: "SET_WORKER_MODE", value });
+    startTransition(() => {
+      dispatch({ type: "SET_WORKER_MODE", value });
+    });
   }, []);
 
   // Worker disabled → re-apply current filter on the main thread so results stay
@@ -323,6 +332,7 @@ export default function App() {
   useEffect(() => {
     if (state.workerEnabled || fullDatasetRef.current.length === 0) return;
     const { query, category } = filterRef.current;
+    if (query === "" && category === "") return;
     const start = performance.now();
     const result = filterProducts(fullDatasetRef.current, query, category);
     startTransition(() => {
@@ -350,9 +360,9 @@ export default function App() {
     lastOperationMs: state.lastOperationMs,
     totalItems: state.displayedProducts.length,
     visibleItems: visibleCount,
-    virtualized: state.virtualized,
+    virtualized: uiVirtualized,
     workerBusy,
-    workerEnabled: state.workerEnabled,
+    workerEnabled: uiWorkerEnabled,
     isLoading: state.isLoading,
     onVirtualizationChange: handleVirtualizationChange,
     onWorkerChange: handleWorkerChange,
