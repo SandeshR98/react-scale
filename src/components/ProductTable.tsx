@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, startTransition } from "react";
+import { memo, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useReactTable,
@@ -6,6 +6,7 @@ import {
   getSortedRowModel,
   flexRender,
   type ColumnDef,
+  type Row,
   type SortingState,
 } from "@tanstack/react-table";
 import { ChevronUp, ChevronDown, ChevronsUpDown } from "lucide-react";
@@ -28,6 +29,7 @@ import type { Product } from "../types/product";
 
 const TABLE_ROW_HEIGHT = 56;
 const NAIVE_CAP = 5_000;
+const CHUNK_SIZE = 500;
 
 function SortIcon({ sorted }: { sorted: false | "asc" | "desc" }) {
   if (sorted === "asc")  return <ChevronUp  className="h-3 w-3 shrink-0 text-foreground" />;
@@ -179,6 +181,48 @@ function useColumns(): ColumnDef<Product>[] {
   ], []);
 }
 
+// Memoized chunk — existing chunks bail out of reconciliation when new ones are
+// appended, keeping each incremental step O(CHUNK_SIZE) instead of O(total).
+const TableChunk = memo(function TableChunk({
+  rows,
+  onRowClick,
+}: {
+  rows: Row<Product>[];
+  onRowClick?: (product: Product) => void;
+}) {
+  return (
+    <>
+      {rows.map((row) => (
+        <TableRow
+          key={row.id}
+          style={{
+            display: "flex",
+            width: "100%",
+            height: TABLE_ROW_HEIGHT,
+            alignItems: "center",
+          }}
+          className="border-b border-border/50 hover:bg-background/80 transition-colors cursor-pointer"
+          onClick={() => onRowClick?.(row.original)}
+        >
+          {row.getVisibleCells().map((cell) => (
+            <TableCell
+              key={cell.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                width: cell.column.getSize(),
+                overflow: "hidden",
+              }}
+            >
+              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+            </TableCell>
+          ))}
+        </TableRow>
+      ))}
+    </>
+  );
+});
+
 type ProductTableProps = {
   products: Product[];
   virtualized: boolean;
@@ -205,11 +249,48 @@ export function ProductTable({ products, virtualized, onVisibleCountChange, onRo
 
   const { rows } = table.getRowModel();
 
-  // Naive rows capped at 5K — same DOM-safety limit as list/grid naive mode.
-  const naiveRows = useMemo(
-    () => (virtualized ? [] : rows.slice(0, NAIVE_CAP)),
-    [virtualized, rows]
-  );
+  // Pre-split rows into chunks. Recomputed when rows change (new filter/sort).
+  const allChunks = useMemo(() => {
+    const capped = rows.slice(0, NAIVE_CAP);
+    const result: Row<Product>[][] = [];
+    for (let i = 0; i < capped.length; i += CHUNK_SIZE) {
+      result.push(capped.slice(i, i + CHUNK_SIZE));
+    }
+    return result;
+  }, [rows]);
+
+  // readyChunks === 0  → nothing mounted yet (first render of naive mode)
+  // readyChunks 1..N-1 → chunks loading progressively
+  // readyChunks === N  → all chunks mounted
+  const [readyChunks, setReadyChunks] = useState(0);
+
+  // Reset whenever we enter naive mode or the row set changes (filter/sort).
+  useEffect(() => {
+    if (!virtualized) {
+      setReadyChunks(0);
+    }
+  }, [virtualized, rows]);
+
+  // Progressive chunk loading — each chunk runs in its own macrotask so the
+  // browser can flush the event queue between chunks, keeping controls interactive.
+  useEffect(() => {
+    if (virtualized) return;
+    if (readyChunks >= allChunks.length) return;
+
+    const id = setTimeout(() => {
+      startTransition(() => setReadyChunks((c) => Math.min(c + 1, allChunks.length)));
+    }, 0);
+
+    return () => clearTimeout(id);
+  }, [virtualized, readyChunks, allChunks]);
+
+  // Report naive visible count (mounted rows) to the PerformancePanel.
+  useEffect(() => {
+    if (!virtualized) {
+      const mounted = allChunks.slice(0, readyChunks).reduce((s, c) => s + c.length, 0);
+      onVisibleCountChange?.(mounted);
+    }
+  }, [virtualized, allChunks, readyChunks, onVisibleCountChange]);
 
   const virtualizer = useVirtualizer({
     count: virtualized ? rows.length : 0,
@@ -221,14 +302,11 @@ export function ProductTable({ products, virtualized, onVisibleCountChange, onRo
     },
   });
 
-  // Report visible row count to the panel when in naive mode.
-  useEffect(() => {
-    if (!virtualized) {
-      onVisibleCountChange?.(naiveRows.length);
-    }
-  }, [virtualized, naiveRows.length, onVisibleCountChange]);
-
   const virtualItems = virtualizer.getVirtualItems();
+
+  const isNaiveLoading = !virtualized && readyChunks < allChunks.length;
+  const totalToLoad = Math.min(rows.length, NAIVE_CAP);
+  const mountedCount = allChunks.slice(0, readyChunks).reduce((s, c) => s + c.length, 0);
   const capped = !virtualized && rows.length > NAIVE_CAP;
 
   return (
@@ -237,12 +315,23 @@ export function ProductTable({ products, virtualized, onVisibleCountChange, onRo
       style={{ height: "100%", overflowY: "auto", backgroundColor: "hsl(var(--muted) / 0.25)" }}
     >
       {!virtualized && (
-        <div className="px-3 py-1.5 mx-2 mt-2 mb-1 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
-          ⚠ Virtualization OFF — {Math.min(rows.length, NAIVE_CAP).toLocaleString()} rows in DOM
-          {capped && (
-            <span className="ml-1 text-destructive/70">
-              (capped from {rows.length.toLocaleString()} — enable virtualization to see all)
-            </span>
+        <div className="px-3 py-1.5 mx-2 mt-2 mb-1 shrink-0 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
+          {isNaiveLoading ? (
+            <>
+              ⏳ Loading {mountedCount.toLocaleString()} / {totalToLoad.toLocaleString()} rows…
+              <span className="ml-2 text-destructive/60 tabular-nums">
+                ({Math.round((mountedCount / totalToLoad) * 100)}%)
+              </span>
+            </>
+          ) : (
+            <>
+              ⚠ Virtualization OFF — {totalToLoad.toLocaleString()} rows in DOM
+              {capped && (
+                <span className="ml-1 text-destructive/70">
+                  (capped from {rows.length.toLocaleString()} — enable virtualization to see all)
+                </span>
+              )}
+            </>
           )}
         </div>
       )}
@@ -324,32 +413,8 @@ export function ProductTable({ products, virtualized, onVisibleCountChange, onRo
                   </TableRow>
                 );
               })
-            : naiveRows.map((row) => (
-                <TableRow
-                  key={row.id}
-                  style={{
-                    display: "flex",
-                    width: "100%",
-                    height: TABLE_ROW_HEIGHT,
-                    alignItems: "center",
-                  }}
-                  className="border-b border-border/50 hover:bg-background/80 transition-colors cursor-pointer"
-                  onClick={() => onRowClick?.(row.original)}
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell
-                      key={cell.id}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        width: cell.column.getSize(),
-                        overflow: "hidden",
-                      }}
-                    >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
+            : allChunks.slice(0, readyChunks).map((chunk, i) => (
+                <TableChunk key={i} rows={chunk} onRowClick={onRowClick} />
               ))
           }
         </TableBody>
