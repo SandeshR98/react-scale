@@ -41,7 +41,6 @@ export function PerformancePanel({
   return (
     <Card className="rounded-none border-l border-t-0 border-r-0 border-b-0 h-full flex flex-col gap-0 py-0 overflow-y-auto">
 
-      {/* ── Header ── */}
       <div className="px-4 pt-4 pb-3 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-1.5">
           <Activity className="h-3.5 w-3.5 text-muted-foreground" />
@@ -62,10 +61,8 @@ export function PerformancePanel({
 
       <Separator />
 
-      {/* ── Stats ── */}
       <div className="px-4 py-4 flex flex-col gap-2.5 shrink-0">
 
-        {/* Last operation */}
         <div className="rounded-lg bg-muted/50 px-3 py-2.5">
           <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1.5">
             Last operation
@@ -85,7 +82,6 @@ export function PerformancePanel({
           </p>
         </div>
 
-        {/* Total + In DOM */}
         <div className="grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-muted/50 px-3 py-2.5">
             <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-1">Total</p>
@@ -127,10 +123,8 @@ export function PerformancePanel({
 
       <Separator />
 
-      {/* ── Toggles ── */}
       <div className="px-4 py-4 flex flex-col gap-5 shrink-0">
 
-        {/* Virtualization */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -162,7 +156,6 @@ export function PerformancePanel({
           </p>
         </div>
 
-        {/* Web Worker */}
         <div className="flex flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -197,7 +190,6 @@ export function PerformancePanel({
 
       <Separator />
 
-      {/* ── Active modes ── */}
       <div className="px-4 py-4 flex flex-col gap-2 shrink-0">
         <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">Active</p>
         <div className="flex flex-col gap-1.5">

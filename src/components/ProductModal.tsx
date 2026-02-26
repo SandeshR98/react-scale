@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Package } from "lucide-react";
 import {
   Dialog,
@@ -19,7 +19,7 @@ import { Stars } from "./Stars";
 import type { Product } from "../types/product";
 
 function stockLabel(stock: number): string {
-  if (stock <= 50)  return "Low stock";
+  if (stock <= 50) return "Low stock";
   return "In stock";
 }
 
@@ -51,9 +51,9 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
   const accentColor = product ? (CATEGORY_COLOR[product.category] ?? "#6b7280") : "#6b7280";
   const Icon = product ? (CATEGORY_ICON[product.category] ?? Package) : Package;
 
-  // Reset image load state each time a different product is opened.
-  const [imgLoaded, setImgLoaded] = useState(false);
-  useEffect(() => { setImgLoaded(false); }, [product?.id]);
+  // Derive imgLoaded from which product id has loaded — no useEffect needed.
+  const [loadedProductId, setLoadedProductId] = useState<number | null>(null);
+  const imgLoaded = loadedProductId === product?.id;
 
   return (
     <Dialog open={!!product} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -77,7 +77,6 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
             >
               <Icon className="h-20 w-20" style={{ color: "#fff", opacity: 0.35 }} />
 
-              {/* Shimmer while photo is loading */}
               {!imgLoaded && (
                 <div
                   className="animate-pulse"
@@ -89,10 +88,6 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
                 />
               )}
 
-              {/*
-               * Uses the same 400×300 URL as grid cards so the browser serves
-               * it from cache when the user clicks through from grid view.
-               */}
               <img
                 src={productImgUrl(product.id, 400, 300)}
                 alt={product.name}
@@ -106,7 +101,7 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
                   opacity: imgLoaded ? 1 : 0,
                   transition: "opacity 220ms ease",
                 }}
-                onLoad={() => setImgLoaded(true)}
+                onLoad={() => setLoadedProductId(product.id)}
                 onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
               />
 

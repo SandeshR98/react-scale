@@ -329,7 +329,6 @@ export default function App() {
       dispatch({ type: "SET_DATASET", products: result });
       dispatch({ type: "SET_OPERATION_TIME", ms: performance.now() - start });
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.workerEnabled]);
 
   // Worker enabled → re-dispatch the active filter through the worker so the

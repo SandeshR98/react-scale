@@ -17,9 +17,6 @@ const NAIVE_CAP = 5_000;
 // Each chunk is a separate macrotask — 500 items × ~0.1ms each ≈ 50ms per chunk.
 const CHUNK_SIZE = 500;
 
-// Memoized chunk component. When a new chunk is appended, every existing
-// NaiveChunk bails out of re-rendering because its props haven't changed.
-// This reduces reconciliation per tick from O(total) → O(chunk_size).
 const NaiveChunk = memo(function NaiveChunk({
   items,
   isGrid,
@@ -62,8 +59,6 @@ type ProductListProps = {
   onProductClick?: (product: Product) => void;
 };
 
-// memo() ensures ProductList skips reconciliation when only unrelated App
-// state changes (e.g. selectedProduct for the modal).
 export const ProductList = memo(function ProductList({
   products,
   virtualized,
@@ -75,12 +70,12 @@ export const ProductList = memo(function ProductList({
   const scrollRef = useRef<HTMLDivElement>(null);
   const isGrid = viewMode === "grid";
 
-  // Once the table view is visited for the first time, keep ProductTable mounted
-  // (just hidden) so useReactTable's getCoreRowModel never re-runs on re-entry.
+  // Keep ProductTable mounted after first visit (visibility:hidden) so
+  // getCoreRowModel never re-initialises on re-entry.
   const hasVisitedTableRef = useRef(false);
   if (viewMode === "table") hasVisitedTableRef.current = true;
 
-  // Stable card-click handler — NaiveChunk's memo depends on this being stable.
+  // Stable callback — NaiveChunk's memo depends on this identity being stable.
   const handleCardClick = useCallback((p: Product) => {
     onProductClick?.(p);
   }, [onProductClick]);
@@ -115,7 +110,6 @@ export const ProductList = memo(function ProductList({
     },
   });
 
-  // Reset scroll to top when view mode or result set changes.
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = 0;
   }, [viewMode, products]);
@@ -128,12 +122,6 @@ export const ProductList = memo(function ProductList({
     }
   }, [virtualized, viewMode, products]);
 
-  // Progressive chunk mounting strategy:
-  //   setTimeout(0)      → schedules a new macrotask, giving the browser a
-  //                         chance to flush the event queue (clicks, key presses)
-  //                         between every chunk.
-  //   startTransition()  → marks the state update as non-urgent so React can
-  //                         interrupt it for higher-priority work (toggle clicks).
   useEffect(() => {
     if (virtualized || viewMode === "table") return;
     if (readyChunks >= allChunks.length) return;
@@ -147,7 +135,6 @@ export const ProductList = memo(function ProductList({
     return () => clearTimeout(id);
   }, [virtualized, viewMode, readyChunks, allChunks]);
 
-  // Report live visible count to the PerformancePanel.
   useEffect(() => {
     if (!virtualized && viewMode !== "table") {
       const mounted = allChunks
@@ -208,7 +195,6 @@ export const ProductList = memo(function ProductList({
       </div>
     );
   } else if (readyChunks === 0) {
-    // No chunks mounted yet — show skeleton while the first setTimeout fires.
     listGridContent = (
       <div style={{ height: "100%", overflowY: "auto", backgroundColor: "hsl(var(--muted) / 0.25)" }}>
         {loadingFallback}
@@ -224,7 +210,6 @@ export const ProductList = memo(function ProductList({
 
     listGridContent = (
       <div style={{ height: "100%", display: "flex", flexDirection: "column", backgroundColor: "hsl(var(--muted) / 0.25)" }}>
-        {/* Pinned banner — stays fixed above the scroll area */}
         <div className="px-3 py-1.5 mx-2 mt-2 mb-1 shrink-0 text-xs font-medium text-destructive bg-destructive/10 border border-destructive/20 rounded-md">
           {isNaiveLoading ? (
             <>
@@ -244,7 +229,6 @@ export const ProductList = memo(function ProductList({
             </>
           )}
         </div>
-        {/* scrollRef reused here so the scroll-reset effect fires correctly */}
         <div ref={scrollRef} style={{ flex: 1, overflowY: "auto" }}>
           {isGrid ? (
             <div style={{ display: "grid", gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`, gap: GRID_GAP, padding: GRID_GAP }}>
@@ -266,11 +250,6 @@ export const ProductList = memo(function ProductList({
 
   return (
     <div style={{ height: "100%", position: "relative" }}>
-      {/*
-       * ProductTable is lazily mounted on the first visit to table mode, then
-       * kept alive using visibility:hidden so the scroll container retains its
-       * measured dimensions and TanStack Virtual never re-initialises.
-       */}
       {hasVisitedTableRef.current && (
         <div
           style={{

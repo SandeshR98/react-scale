@@ -203,7 +203,6 @@ export function ProductTable({ products, onVisibleCountChange, onRowClick }: Pro
 
   const { rows } = table.getRowModel();
 
-  // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
