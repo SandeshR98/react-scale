@@ -18,11 +18,6 @@ import {
 import { Stars } from "./Stars";
 import type { Product } from "../types/product";
 
-function stockLabel(stock: number): string {
-  if (stock <= 50) return "Low stock";
-  return "In stock";
-}
-
 function StatBlock({
   label,
   value,
@@ -167,7 +162,7 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
                   value={
                     <span className="flex items-center gap-1.5">
                       <span style={{ color: stockColor(product.stock), fontSize: "0.5rem" }}>●</span>
-                      {product.stock} — {stockLabel(product.stock)}
+                      {product.stock} — {product.stock <= 50 ? "Low stock" : "In stock"}
                     </span>
                   }
                   valueColor={stockColor(product.stock)}
