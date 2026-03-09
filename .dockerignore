@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.vercel/
+.git/
+.github/
+openspec/
+.claude/
+*.log
