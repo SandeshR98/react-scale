@@ -290,7 +290,7 @@ export default function App() {
 							rel='noopener noreferrer'
 							className='hidden sm:block text-xs text-muted-foreground hover:text-foreground transition-colors'
 						>
-							by Sandesh Rathnayake
+							by Sandesh Rathnayake 👨‍💻
 						</a>
 						<button
 							onClick={() => setShowPanel((v) => !v)}
